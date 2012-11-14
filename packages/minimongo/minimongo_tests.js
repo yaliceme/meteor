@@ -835,9 +835,22 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
   match({$where: "_.isArray(this.a)"}, {a: []});
   nomatch({$where: "_.isArray(this.a)"}, {a: 1});
 
+  // reaching into array
+  match({"dogs.0.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  match({"dogs.1.name": "Rex"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  nomatch({"dogs.1.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+
+  // $elemMatch
+  match({dogs: {$elemMatch: {name: /e/}}}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  nomatch({dogs: {$elemMatch: {name: /a/}}}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  match({dogs: {$elemMatch: {age: {$gt: 4}}}}, {dogs: [{name: "Fido", age: 5}, {name: "Rex", age: 3}]});
+  match({dogs: {$elemMatch: {name: "Fido", age: {$gt: 4}}}}, {dogs: [{name: "Fido", age: 5}, {name: "Rex", age: 3}]});
+  nomatch({dogs: {$elemMatch: {name: "Fido", age: {$gt: 5}}}}, {dogs: [{name: "Fido", age: 5}, {name: "Rex", age: 3}]});
+  match({dogs: {$elemMatch: {name: /i/, age: {$gt: 4}}}}, {dogs: [{name: "Fido", age: 5}, {name: "Rex", age: 3}]});
+  nomatch({dogs: {$elemMatch: {name: /e/, age: 5}}}, {dogs: [{name: "Fido", age: 5}, {name: "Rex", age: 3}]});
+
   // XXX still needs tests:
   // - $elemMatch
-  // - people.2.name
   // - non-scalar arguments to $gt, $lt, etc
 });
 
