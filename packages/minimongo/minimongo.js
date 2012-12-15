@@ -260,7 +260,7 @@ LocalCollection.Cursor.prototype._getRawObjects = function (ordered) {
 
   // fast path for single ID value
   if (self.selector_id) {
-    // If you have non zero and ask for a single id, you get
+    // If you have non-zero skip and ask for a single id, you get
     // nothing. This is so it matches the behavior of the '{_id: foo}'
     // path.
     if (self.skip)
