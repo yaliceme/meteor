@@ -198,7 +198,7 @@ Meteor._LivedataConnection = function (url, options) {
     var msg = {msg: 'connect'};
     if (self._lastSessionId)
       msg.session = self._lastSessionId;
-    self._stream.send(JSON.stringify(msg));
+    self._send(msg);
 
     // Now, to minimize setup latency, go ahead and blast out all of
     // our pending methods ands subscriptions before we've even taken
@@ -234,8 +234,12 @@ Meteor._LivedataConnection = function (url, options) {
     // add new subscriptions at the end. this way they take effect after
     // the handlers and we don't see flicker.
     self._subCollection.find().forEach(function (sub) {
-      self._stream.send(JSON.stringify(
-        {msg: 'sub', id: sub._id, name: sub.name, params: sub.args}));
+      self._send({
+        msg: 'sub',
+        id: sub._id,
+        name: sub.name,
+        params: sub.args
+      });
     });
   });
 
@@ -253,8 +257,12 @@ Meteor._LivedataConnection = function (url, options) {
   // that holds a reference to self._subCollection
   self._subCollection.find({})._observeUnordered({
     added: function (sub) {
-      self._stream.send(JSON.stringify({
-        msg: 'sub', id: sub._id, name: sub.name, params: sub.args}));
+      self._send({
+        msg: 'sub',
+        id: sub._id,
+        name: sub.name,
+        params: sub.args
+      });
     },
     changed: function (sub) {
       if (sub.count <= 0) {
@@ -263,7 +271,7 @@ Meteor._LivedataConnection = function (url, options) {
       }
     },
     removed: function (obj) {
-      self._stream.send(JSON.stringify({msg: 'unsub', id: obj._id}));
+      self._send({msg: 'unsub', id: obj._id});
     }
   });
 };
@@ -282,7 +290,7 @@ var MethodInvoker = function (options) {
 
   self._callback = options.callback;
   self._connection = options.connection;
-  self._message = JSON.stringify(options.message);
+  self._message = options.message;
   self._onResultReceived = options.onResultReceived || function () {};
   self._wait = options.wait;
   self._methodResult = null;
@@ -314,7 +322,7 @@ _.extend(MethodInvoker.prototype, {
       self._connection._methodsBlockingQuiescence[self.methodId] = true;
 
     // Actually send the message.
-    self._connection._stream.send(self._message);
+    self._connection._send(self._message);
   },
   // Invoke the callback, if we have both a result and know that all data has
   // been written to the local cache.
@@ -676,6 +684,12 @@ _.extend(Meteor._LivedataConnection.prototype, {
     if (!_.isEmpty(docsWritten)) {
       self._documentsWrittenByStub[methodId] = docsWritten;
     }
+  },
+
+  // Sends the JSON stringification of the given message object
+  _send: function (obj) {
+    var self = this;
+    self._stream.send(JSON.stringify(obj));
   },
 
   status: function (/*passthrough args*/) {
