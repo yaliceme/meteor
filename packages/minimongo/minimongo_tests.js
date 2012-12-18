@@ -251,8 +251,11 @@ Tinytest.add("minimongo - misc", function (test) {
 });
 
 Tinytest.add("minimongo - selector_compiler", function (test) {
+  _.times(100, function () {
   var matches = function (should_match, selector, doc) {
-    var does_match = LocalCollection._matches(selector, doc);
+    var compiled = LocalCollection._compileSelector(selector);
+    _.times(100, function () {
+    var does_match = compiled(doc);
     if (does_match != should_match) {
       // XXX super janky
       test.fail({type: "minimongo-ordering",
@@ -263,6 +266,7 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
                  document: JSON.stringify(doc)
                 });
     }
+    });
   };
 
   var match = _.bind(matches, null, true);
@@ -866,6 +870,7 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
   // XXX still needs tests:
   // - $elemMatch
   // - non-scalar arguments to $gt, $lt, etc
+});
 });
 
 Tinytest.add("minimongo - ordering", function (test) {
