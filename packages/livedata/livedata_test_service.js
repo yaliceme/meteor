@@ -235,5 +235,23 @@ if (Meteor.isServer) {
   });
 }
 
+/// Helper for "livedata - server-driven unsub"
+if (Meteor.isServer) {
+  (function(){
+    var seenTokens = {};
+    Meteor.publish("serverDrivenUnsub", function (disappearingToken,
+                                                  stayingToken) {
+      if (!_.has(seenTokens, disappearingToken)) {
+        seenTokens[disappearingToken] = true;
+        this.added("serverDrivenUnsubCollection", disappearingToken, {});
+        this.complete();
+        this.stop();
+      } else {
+        this.added("serverDrivenUnsubCollection", stayingToken, {});
+        this.complete();
+      }
+    });
+  })();
+}
 
 })();

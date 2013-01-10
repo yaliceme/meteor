@@ -430,6 +430,26 @@ if (Meteor.isClient) {
       }));
     }
   ]);
+
+  testAsyncMulti("livedata - server-driven unsub", [
+    function (test, expect) {
+      var coll = new Meteor.Collection("serverDrivenUnsubCollection");
+      var disappearingToken = Meteor.id();
+      var stayingToken = Meteor.id();
+
+      // We call sub twice.
+
+      var secondSubOnComplete = expect(function () {
+        test.isFalse(coll.findOne(disappearingToken));
+        test.isTrue(coll.findOne(stayingToken));
+      });
+
+      Meteor.subscribe("serverDrivenUnsub", disappearingToken, stayingToken, expect(function () {
+        Meteor.subscribe("serverDrivenUnsub", disappearingToken, stayingToken,
+                         secondSubOnComplete);
+      }));
+    }
+  ]);
 }
 
 // XXX some things to test in greater detail:
