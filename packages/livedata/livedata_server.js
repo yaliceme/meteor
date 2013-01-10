@@ -507,7 +507,11 @@ _.extend(Meteor._LivedataSubscription.prototype, {
   },
 
   onStop: function (callback) {
-    this.stop_callbacks.push(callback);
+    var self = this;
+    if (self.stopped)
+      callback();
+    else
+      self.stop_callbacks.push(callback);
   },
 
   set: function (collection_name, id, attributes) {
