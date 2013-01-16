@@ -11,3 +11,4 @@ cache
 *.sublime-project
 *.sublime-workspace
 TAGS
+npm-debug.log
