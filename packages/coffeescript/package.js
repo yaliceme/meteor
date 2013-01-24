@@ -2,11 +2,12 @@ Package.describe({
   summary: "Javascript dialect with fewer braces and semicolons"
 });
 
-var coffee = require('coffee-script');
-var fs = require('fs');
+Npm.depends({"coffee-script": "1.4.0"});
 
 Package.register_extension(
   "coffee", function (bundle, source_path, serve_path, where) {
+    var fs = Npm.require('fs');
+    var coffee = Npm.require('coffee-script');
     serve_path = serve_path + '.js';
 
     var contents = fs.readFileSync(source_path);

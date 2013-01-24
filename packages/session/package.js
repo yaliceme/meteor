@@ -1,11 +1,9 @@
-var path = require('path');
+var _ = Npm.require('underscore'); // needed at bundle time
 
 Package.describe({
   summary: "Session variable",
   internal: true
 });
-
-var _ = require('underscore'); // needed at bundle time
 
 Package.on_use(function (api, where) {
   where = where || ['client', 'server'];
