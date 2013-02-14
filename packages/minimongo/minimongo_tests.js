@@ -210,6 +210,26 @@ Tinytest.add("minimongo - misc", function (test) {
   test.equal(b.x.a, 14); // just to document current behavior
 });
 
+Tinytest.add("minimongo - lookup", function (test) {
+  var lookupA = LocalCollection._makeLookupFunction('a');
+  test.equal(lookupA({}), [undefined]);
+  test.equal(lookupA({a: 1}), [1]);
+  test.equal(lookupA({a: [1]}), [[1]]);
+
+  var lookupAX = LocalCollection._makeLookupFunction('a.x');
+  test.equal(lookupAX({a: {x: 1}}), [1]);
+  test.equal(lookupAX({a: {x: [1]}}), [[1]]);
+  test.equal(lookupAX({a: 5}), [undefined]);
+  test.equal(lookupAX({a: [{x: 1}, {x: [2]}, {y: 3}]}),
+             [1, [2], undefined]);
+
+  var lookupA0X = LocalCollection._makeLookupFunction('a.0.x');
+  test.equal(lookupA0X({a: [{x: 1}]}), [1]);
+  test.equal(lookupA0X({a: [{x: [1]}]}), [[1]]);
+  test.equal(lookupA0X({a: 5}), [undefined]);
+  test.equal(lookupA0X({a: [{x: 1}, {x: [2]}, {y: 3}]}), [1]);
+});
+
 Tinytest.add("minimongo - selector_compiler", function (test) {
   var matches = function (should_match, selector, doc) {
     var does_match = LocalCollection._matches(selector, doc);
@@ -807,6 +827,20 @@ Tinytest.add("minimongo - selector_compiler", function (test) {
   match({"dogs.1.name": "Rex"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
   nomatch({"dogs.1.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
   match({"room.1b": "bla"}, {room: {"1b": "bla"}});
+
+  match({"dogs.name": "Fido"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  match({"dogs.name": "Rex"}, {dogs: [{name: "Fido"}, {name: "Rex"}]});
+  match({"animals.dogs.name": "Fido"},
+        {animals: [{dogs: [{name: "Rover"}]},
+                   {},
+                   {dogs: [{name: "Fido"}, {name: "Rex"}]}]});
+  match({"animals.dogs.name": "Fido"},
+        {animals: [{dogs: {name: "Rex"}},
+                   {dogs: {name: "Fido"}}]});
+  match({"animals.dogs.name": "Fido"},
+        {animals: [{dogs: [{name: "Rover"}]},
+                   {},
+                   {dogs: [{name: ["Fido"]}, {name: "Rex"}]}]});
 
   // $elemMatch
   match({dogs: {$elemMatch: {name: /e/}}},

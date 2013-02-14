@@ -478,11 +478,64 @@ LocalCollection._matches = function (selector, doc) {
   return (LocalCollection._compileSelector(selector))(doc);
 };
 
-var makeLookupFunction = function (key) {
+// _makeLookupFunction(key) returns a lookup function.
+//
+// A lookup function takes in a document and returns an array of matching
+// values.  This array has more than one element if any segment of the key other
+// than the last one is an array.  ie, any arrays found when doing non-final
+// lookups result in this function "branching"; each element in the returned
+// array represents the value found at this branch. If any branch doesn't have a
+// final value for the full key, its element in the returned list will be
+// undefined.
+//
+// _makeLookupFunction('a.x')({a: {x: 1}}) returns [1]
+// _makeLookupFunction('a.x')({a: {x: [1]}}) returns [[1]]
+// _makeLookupFunction('a.x')({a: 5})  returns [undefined]
+// _makeLookupFunction('a.x')({a: [{x: 1},
+//                                 {x: [2]},
+//                                 {y: 3}]})
+//   returns [1, [2], undefined]
+LocalCollection._makeLookupFunction = function (key) {
+  var dotLocation = key.indexOf('.');
+  var first, lookupRest, nextIsNumeric;
+  if (dotLocation === -1) {
+    first = key;
+  } else {
+    first = key.substr(0, dotLocation);
+    var rest = key.substr(dotLocation + 1);
+    lookupRest = LocalCollection._makeLookupFunction(rest);
+    nextIsNumeric = /^\d+(\.|$)/.test(rest);
+  }
+
+  return function (doc) {
+    if (doc == null)  // null or undefined
+      return [undefined];
+    var firstLevel = doc[first];
+
+    // We don't "branch" at the final level.
+    if (!lookupRest)
+      return [firstLevel];
+
+    // For each result at this level, finish the lookup on the rest of the key,
+    // and return everything we find. Also, if the next result is a number,
+    // don't branch here.
+    //
+    // Technically, in MongoDB, we should be able to handle the case where
+    // objects have numeric keys, but Mongo doesn't actually handle this
+    // consistently yet itself, see eg
+    // https://jira.mongodb.org/browse/SERVER-2898
+    // https://github.com/mongodb/mongo/blob/master/jstests/array_match2.js
+    if (!_.isArray(firstLevel) || nextIsNumeric)
+      firstLevel = [firstLevel];
+    return Array.prototype.concat.apply([], _.map(firstLevel, lookupRest));
+  };
+};
+
+var makeSortLookupFunction = function (key) {
   var dotLocation = key.indexOf('.');
   var first = dotLocation === -1 ? key : key.substr(0, dotLocation);
   var lookupRest = dotLocation !== -1 &&
-        makeLookupFunction(key.substr(dotLocation + 1));
+        makeSortLookupFunction(key.substr(dotLocation + 1));
   return function (doc) {
     if (doc == null)  // null or undefined
       return undefined;
@@ -504,10 +557,14 @@ var compileDocumentSelector = function (docSelector) {
         throw new Error("Unrecognized logical operator: " + key);
       perKeySelectors.push(LOGICAL_OPERATORS[key](subSelector));
     } else {
-      var lookUpByIndex = makeLookupFunction(key);
+      var lookUpByIndex = LocalCollection._makeLookupFunction(key);
       var valueSelectorFunc = compileValueSelector(subSelector);
       perKeySelectors.push(function (doc) {
-        return valueSelectorFunc(lookUpByIndex(doc));
+        var branchValues = lookUpByIndex(doc);
+        // We apply the selector to each "branched" value and return true if any
+        // match. This isn't 100% consistent with MongoDB; eg, see:
+        // https://jira.mongodb.org/browse/SERVER-8585
+        return _.any(branchValues, valueSelectorFunc);
       });
     }
   });
@@ -570,12 +627,12 @@ LocalCollection._compileSort = function (spec) {
     for (var i = 0; i < spec.length; i++) {
       if (typeof spec[i] === "string") {
         sortSpecParts.push({
-          lookup: makeLookupFunction(spec[i]),
+          lookup: makeSortLookupFunction(spec[i]),
           ascending: true
         });
       } else {
         sortSpecParts.push({
-          lookup: makeLookupFunction(spec[i][0]),
+          lookup: makeSortLookupFunction(spec[i][0]),
           ascending: spec[i][1] !== "desc"
         });
       }
@@ -583,7 +640,7 @@ LocalCollection._compileSort = function (spec) {
   } else if (typeof spec === "object") {
     for (var key in spec) {
       sortSpecParts.push({
-        lookup: makeLookupFunction(key),
+        lookup: makeSortLookupFunction(key),
         ascending: spec[key] >= 0
       });
     }
