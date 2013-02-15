@@ -504,6 +504,7 @@ LocalCollection._makeLookupFunction = function (key) {
     first = key.substr(0, dotLocation);
     var rest = key.substr(dotLocation + 1);
     lookupRest = LocalCollection._makeLookupFunction(rest);
+    // Is the next (perhaps final) piece numeric (ie, an array lookup?)
     nextIsNumeric = /^\d+(\.|$)/.test(rest);
   }
 
@@ -640,6 +641,11 @@ LocalCollection._compileSort = function (spec) {
   if (sortSpecParts.length === 0)
     return function () {return 0;};
 
+  // reduceValue takes in all the possible values for the sort key along various
+  // branches, and returns the min or max value (according to the bool
+  // findMin). Each value can itself be an array, and we look at its values
+  // too. (ie, we do a single level of flattening on branchValues, then find the
+  // min/max.)
   var reduceValue = function (branchValues, findMin) {
     var reduced;
     var first = true;
