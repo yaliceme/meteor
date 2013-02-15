@@ -486,7 +486,7 @@ LocalCollection._matches = function (selector, doc) {
 // lookups result in this function "branching"; each element in the returned
 // array represents the value found at this branch. If any branch doesn't have a
 // final value for the full key, its element in the returned list will be
-// undefined.
+// undefined. It always returns a non-empty array.
 //
 // _makeLookupFunction('a.x')({a: {x: 1}}) returns [1]
 // _makeLookupFunction('a.x')({a: {x: [1]}}) returns [[1]]
@@ -516,6 +516,10 @@ LocalCollection._makeLookupFunction = function (key) {
     if (!lookupRest)
       return [firstLevel];
 
+    // It's an empty array, and we're not done: we won't find anything.
+    if (_.isArray(firstLevel) && firstLevel.length === 0)
+      return [undefined];
+
     // For each result at this level, finish the lookup on the rest of the key,
     // and return everything we find. Also, if the next result is a number,
     // don't branch here.
@@ -528,21 +532,6 @@ LocalCollection._makeLookupFunction = function (key) {
     if (!_.isArray(firstLevel) || nextIsNumeric)
       firstLevel = [firstLevel];
     return Array.prototype.concat.apply([], _.map(firstLevel, lookupRest));
-  };
-};
-
-var makeSortLookupFunction = function (key) {
-  var dotLocation = key.indexOf('.');
-  var first = dotLocation === -1 ? key : key.substr(0, dotLocation);
-  var lookupRest = dotLocation !== -1 &&
-        makeSortLookupFunction(key.substr(dotLocation + 1));
-  return function (doc) {
-    if (doc == null)  // null or undefined
-      return undefined;
-    var firstLevel = doc[first];
-    if (lookupRest)
-      return lookupRest(firstLevel);
-    return firstLevel;
   };
 };
 
@@ -627,12 +616,12 @@ LocalCollection._compileSort = function (spec) {
     for (var i = 0; i < spec.length; i++) {
       if (typeof spec[i] === "string") {
         sortSpecParts.push({
-          lookup: makeSortLookupFunction(spec[i]),
+          lookup: LocalCollection._makeLookupFunction(spec[i]),
           ascending: true
         });
       } else {
         sortSpecParts.push({
-          lookup: makeSortLookupFunction(spec[i][0]),
+          lookup: LocalCollection._makeLookupFunction(spec[i][0]),
           ascending: spec[i][1] !== "desc"
         });
       }
@@ -640,7 +629,7 @@ LocalCollection._compileSort = function (spec) {
   } else if (typeof spec === "object") {
     for (var key in spec) {
       sortSpecParts.push({
-        lookup: makeSortLookupFunction(key),
+        lookup: LocalCollection._makeLookupFunction(key),
         ascending: spec[key] >= 0
       });
     }
@@ -651,11 +640,44 @@ LocalCollection._compileSort = function (spec) {
   if (sortSpecParts.length === 0)
     return function () {return 0;};
 
+  var reduceValue = function (branchValues, findMin) {
+    var reduced;
+    var first = true;
+    // Iterate over all the values found in all the branches, and if a value is
+    // an array itself, iterate over the values in the array separately.
+    _.each(branchValues, function (branchValue) {
+      // Value not an array? Pretend it is.
+      if (!_.isArray(branchValue))
+        branchValue = [branchValue];
+      // Value is an empty array? Pretend it was missing, since that's where it
+      // should be sorted.
+      if (_.isArray(branchValue) && branchValue.length === 0)
+        branchValue = [undefined];
+      _.each(branchValue, function (value) {
+        // We should get here at least once: lookup functions return non-empty
+        // arrays, so the outer loop runs at least once, and we prevented
+        // branchValue from being an empty array.
+        if (first) {
+          reduced = value;
+          first = false;
+        } else {
+          // Compare the value we found to the value we found so far, saving it
+          // if it's less (for an ascending sort) or more (for a descending
+          // sort).
+          var cmp = LocalCollection._f._cmp(reduced, value);
+          if ((findMin && cmp > 0) || (!findMin && cmp < 0))
+            reduced = value;
+        }
+      });
+    });
+    return reduced;
+  };
+
   return function (a, b) {
     for (var i = 0; i < sortSpecParts.length; ++i) {
       var specPart = sortSpecParts[i];
-      var aValue = specPart.lookup(a);
-      var bValue = specPart.lookup(b);
+      var aValue = reduceValue(specPart.lookup(a), specPart.ascending);
+      var bValue = reduceValue(specPart.lookup(b), specPart.ascending);
       var compare = LocalCollection._f._cmp(aValue, bValue);
       if (compare !== 0)
         return specPart.ascending ? compare : -compare;
