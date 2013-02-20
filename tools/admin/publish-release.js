@@ -1,0 +1,1 @@
+var awssum = require("awssum");
