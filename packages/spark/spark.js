@@ -1092,8 +1092,7 @@ Spark.labelBranch = function (label, htmlFunc) {
 
 Spark.createLandmark = function (options, htmlFunc) {
   var controller = Spark.Landmark.extend({
-    constructor: function () {
-      Spark.Landmark.call(this);
+    init: function () {
       if (options.created)
         options.created.call(this);
     },
@@ -1126,6 +1125,7 @@ Spark.attachController = function (controller, htmlFunc) {
   if (! renderer) {
     // no renderer -- create and destroy Landmark inline
     var landmark = new controller;
+    landmark.init();
     var html = htmlFunc(landmark);
     landmark.finalize();
     return html;
@@ -1147,6 +1147,7 @@ Spark.attachController = function (controller, htmlFunc) {
     Meteor.deps.Context.current = null;
     try {
       landmark = new controller;
+      landmark.init();
     } finally {
       Meteor.deps.Context.current = oldCx;
     }
